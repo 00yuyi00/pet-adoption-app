@@ -1,45 +1,79 @@
-import { Search, Bell, MoreHorizontal } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, Bell, MoreHorizontal, Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAppContext } from '../context/AppContext';
 
 export default function Messages() {
-  const messages = [
-    {
-      id: 1,
-      name: '系统通知',
-      avatar: 'https://ui-avatars.com/api/?name=Sys&background=ee9d2b&color=fff',
-      lastMessage: '您的领养申请已通过审核！',
-      time: '10:42',
-      unread: 1,
-      isSystem: true
-    },
-    {
-      id: 2,
-      name: '李阿姨 (送养人)',
-      avatar: 'https://picsum.photos/seed/user1/100/100',
-      lastMessage: '好的，那我们周末下午见。',
-      time: '昨天',
-      unread: 0,
-      isSystem: false
-    },
-    {
-      id: 3,
-      name: '王先生',
-      avatar: 'https://picsum.photos/seed/user2/100/100',
-      lastMessage: '请问狗狗还在吗？',
-      time: '星期二',
-      unread: 2,
-      isSystem: false
-    },
-    {
-      id: 4,
-      name: '宠物救助站',
-      avatar: 'https://picsum.photos/seed/user3/100/100',
-      lastMessage: '感谢您的关注，目前这只猫咪已经被预定了。',
-      time: '10月24日',
-      unread: 0,
-      isSystem: false
+  const navigate = useNavigate();
+  const { user } = useAppContext();
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchMessages() {
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        // Fetch all messages involving the user
+        const { data: messages, error } = await supabase
+          .from('messages')
+          .select(`
+                id, sender_id, receiver_id, content, created_at, is_read, type,
+                sender:profiles!messages_sender_id_fkey(id, name, avatar_url),
+                receiver:profiles!messages_receiver_id_fkey(id, name, avatar_url)
+            `)
+          .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Group by contact (the "other" person)
+        const chatMap = new Map<string, any>();
+
+        (messages || []).forEach(msg => {
+          const isMeSender = msg.sender_id === user.id;
+          const contactId = isMeSender ? msg.receiver_id : msg.sender_id;
+          const contactProfile = isMeSender ? msg.receiver : msg.sender;
+
+          if (!chatMap.has(contactId)) {
+            chatMap.set(contactId, {
+              contactId,
+              contactProfile,
+              latestMessage: msg,
+              unreadCount: (!isMeSender && !msg.is_read) ? 1 : 0
+            });
+          } else {
+            if (!isMeSender && !msg.is_read) {
+              chatMap.get(contactId).unreadCount += 1;
+            }
+          }
+        });
+
+        setConversations(Array.from(chatMap.values()));
+      } catch (err) {
+        console.error("Error fetching messages:", err);
+      } finally {
+        setIsLoading(false);
+      }
     }
-  ];
+
+    fetchMessages();
+
+    // Set up realtime listener to refresh
+    if (user?.id) {
+      const channel = supabase.channel('messages_refresh')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, fetchMessages)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `sender_id=eq.${user.id}` }, fetchMessages)
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      }
+    }
+  }, [user?.id]);
 
   return (
     <div className="flex-1 overflow-y-auto pb-24 no-scrollbar bg-[#fcfaf8] dark:bg-[#1f1a14] min-h-screen text-[#1b160d] dark:text-[#f3eee7]">
@@ -68,27 +102,42 @@ export default function Messages() {
       </header>
 
       <main className="px-4 py-2">
-        <div className="space-y-1">
-          {messages.map((msg) => (
-            <Link to={`/chat/${msg.id}`} key={msg.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-[#2d261e] transition-colors cursor-pointer active:scale-[0.98] block">
-              <div className="relative shrink-0">
-                <img src={msg.avatar} alt={msg.name} className="w-12 h-12 rounded-full object-cover" />
-                {msg.unread > 0 && (
-                  <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#fcfaf8] dark:border-[#1f1a14]">
-                    {msg.unread}
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-center mb-1">
-                  <h3 className="font-bold text-base truncate pr-2">{msg.name}</h3>
-                  <span className="text-xs text-gray-400 shrink-0">{msg.time}</span>
+        {isLoading ? (
+          <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-[#ee9d2b]" /></div>
+        ) : conversations.length === 0 ? (
+          <div className="text-center py-20 opacity-60">
+            <p className="text-gray-500 font-medium pb-2">暂无聊天记录</p>
+            <div className="text-xs text-gray-400">去主页找到心仪的毛孩子，与主理人私信吧</div>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {conversations.map((chat) => (
+              <Link to={`/chat/${chat.contactId}`} key={chat.contactId} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white dark:hover:bg-[#2d261e] transition-colors cursor-pointer active:scale-[0.98] block">
+                <div className="relative shrink-0">
+                  <img src={chat.contactProfile?.avatar_url || 'https://picsum.photos/100'} alt={chat.contactProfile?.name} className="w-12 h-12 rounded-full object-cover bg-slate-200" />
+                  {chat.unreadCount > 0 && (
+                    <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-[20px] h-5 rounded-full flex items-center justify-center border-2 border-[#fcfaf8] dark:border-[#1f1a14] px-1">
+                      {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                    </div>
+                  )}
                 </div>
-                <p className="text-sm text-[#9a794c] dark:text-[#bca380] truncate">{msg.lastMessage}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center mb-1">
+                    <h3 className="font-bold text-base truncate pr-2">{chat.contactProfile?.name || '未知用户'}</h3>
+                    <span className="text-xs text-gray-400 shrink-0">
+                      {new Date(chat.latestMessage.created_at).toLocaleDateString() === new Date().toLocaleDateString()
+                        ? new Date(chat.latestMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : new Date(chat.latestMessage.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[#9a794c] dark:text-[#bca380] truncate">
+                    {chat.latestMessage.type === 'image' ? '[图片]' : chat.latestMessage.type === 'audio' ? '[语音消息]' : chat.latestMessage.content}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );

@@ -89,6 +89,22 @@ export default function Publish() {
     }
   };
 
+  const handleReset = () => {
+    if (!window.confirm('确定要清空当前填写的所有信息吗？')) return;
+    setPostType('lost');
+    setPetType('dog');
+    setPetName('');
+    setDescription('');
+    setLocationStr('');
+    setHasReward(false);
+    setRewardAmount('');
+    setImageFile(null);
+    setImagePreview('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto pb-24 no-scrollbar bg-[#f8f7f6] dark:bg-[#221a10] min-h-screen text-slate-900 dark:text-slate-100">
       <div className="sticky top-0 z-10 flex items-center bg-[#f8f7f6] dark:bg-[#221a10]/95 backdrop-blur-sm p-4 pb-2 justify-between border-b border-stone-200 dark:border-stone-800">
@@ -96,7 +112,7 @@ export default function Publish() {
           <X className="w-6 h-6" />
         </button>
         <h2 className="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-tight flex-1 text-center">发布信息</h2>
-        <button className="flex w-12 items-center justify-end text-[#ee9d2b] text-base font-bold hover:opacity-80 transition-opacity">
+        <button onClick={handleReset} className="flex w-12 items-center justify-end text-[#ee9d2b] text-base font-bold hover:opacity-80 transition-opacity">
           重置
         </button>
       </div>
@@ -426,9 +442,12 @@ export default function Publish() {
             )}
           </div>
         )}
+
+        {/* Empty space at the bottom to ensure content doesn't get hidden behind the fixed button */}
+        <div className="h-24"></div>
       </div>
 
-      <div className="absolute bottom-0 left-0 w-full bg-white/80 dark:bg-stone-900/80 backdrop-blur-md border-t border-stone-200 dark:border-stone-800 p-4 pb-8 z-20">
+      <div className="fixed bottom-0 left-0 w-full bg-white/80 dark:bg-stone-900/80 backdrop-blur-md border-t border-stone-200 dark:border-stone-800 p-4 pb-8 z-50">
         <button disabled={isSubmitting} onClick={handlePublish} className="w-full flex items-center justify-center gap-2 bg-[#ee9d2b] hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-lg h-14 rounded-2xl shadow-lg shadow-[#ee9d2b]/20 active:scale-[0.98] transition-all">
           {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <>立即发布 <Send className="w-5 h-5" /></>}
         </button>

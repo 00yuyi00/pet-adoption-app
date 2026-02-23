@@ -129,6 +129,27 @@ alter table public.guides enable row level security;
 create policy "Guides are viewable by everyone." on guides for select using (true);
 
 
+-- 7. User Follows Table
+CREATE TABLE public.follows (
+  follower_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  following_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+  created_at timestamp with time zone DEFAULT now(),
+  PRIMARY KEY (follower_id, following_id)
+);
+
+ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can view follows" ON public.follows FOR SELECT USING (true);
+
+CREATE POLICY "Users can follow others" ON public.follows FOR INSERT WITH CHECK (
+  auth.uid() = follower_id AND auth.uid() != following_id
+);
+
+CREATE POLICY "Users can unfollow others" ON public.follows FOR DELETE USING (
+  auth.uid() = follower_id
+);
+
+
 -- ==========================================
 -- TRIGGER TO AUTO-CREATE PROFILE ON SIGNUP
 -- ==========================================

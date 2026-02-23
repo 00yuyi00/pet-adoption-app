@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, Trash2, Edit, CheckCircle, XCircle, Users, PawPrint, FileText, ArrowLeft, Loader2, Ban, Unlock } from 'lucide-react';
+import { ShieldAlert, Trash2, Edit, CheckCircle, XCircle, Users, PawPrint, FileText, ArrowLeft, Loader2, Ban, Unlock, BookOpen, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAppContext } from '../context/AppContext';
@@ -8,13 +8,19 @@ export default function Admin() {
     const navigate = useNavigate();
     const { user, authLoading } = useAppContext();
 
-    const [activeTab, setActiveTab] = useState<'users' | 'pets' | 'apps'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'pets' | 'apps' | 'guides'>('users');
     const [isLoading, setIsLoading] = useState(true);
 
     // Data States
     const [usersList, setUsersList] = useState<any[]>([]);
     const [petsList, setPetsList] = useState<any[]>([]);
     const [appsList, setAppsList] = useState<any[]>([]);
+    const [guidesList, setGuidesList] = useState<any[]>([]);
+
+    // Guide Modal State
+    const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
+    const [editingGuide, setEditingGuide] = useState<any>(null);
+    const [guideForm, setGuideForm] = useState({ title: '', category: 'dog', content: '' });
 
     useEffect(() => {
         if (authLoading) return;
@@ -33,13 +39,17 @@ export default function Admin() {
                 const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
                 setUsersList(data || []);
             } else if (activeTab === 'pets') {
-                const { data } = await supabase.from('pets').select('*, profiles(name)').order('created_at', { ascending: false });
+                const { data, error } = await supabase.from('pets').select('*, profiles!pets_user_id_fkey(name)').order('created_at', { ascending: false });
+                if (error) console.error("Pets Fetch Error:", error);
                 setPetsList(data || []);
             } else if (activeTab === 'apps') {
                 const { data } = await supabase.from('applications')
                     .select('*, pets(name, image_url), applicant:profiles!applications_applicant_id_fkey(name, phone)')
                     .order('created_at', { ascending: false });
                 setAppsList(data || []);
+            } else if (activeTab === 'guides') {
+                const { data } = await supabase.from('guides').select('*').order('created_at', { ascending: false });
+                setGuidesList(data || []);
             }
         } catch (err) {
             console.error(err);
@@ -69,6 +79,50 @@ export default function Admin() {
         if (!window.confirm(`确定要${newStatus === 'approved' ? '批准' : '拒绝'}这条申请吗？`)) return;
         await supabase.from('applications').update({ status: newStatus }).eq('id', appId);
         fetchData();
+    };
+
+    // Guide Actions
+    const saveGuide = async () => {
+        if (!guideForm.title || !guideForm.content) {
+            alert('请填写标题和内容');
+            return;
+        }
+
+        if (editingGuide) {
+            await supabase.from('guides').update({
+                title: guideForm.title,
+                category: guideForm.category,
+                content: guideForm.content
+            }).eq('id', editingGuide.id);
+        } else {
+            await supabase.from('guides').insert({
+                title: guideForm.title,
+                category: guideForm.category,
+                content: guideForm.content
+            });
+        }
+
+        setIsGuideModalOpen(false);
+        setEditingGuide(null);
+        setGuideForm({ title: '', category: 'dog', content: '' });
+        fetchData();
+    };
+
+    const deleteGuide = async (guideId: string) => {
+        if (!window.confirm('确定要删除这篇指南吗？')) return;
+        await supabase.from('guides').delete().eq('id', guideId);
+        fetchData();
+    };
+
+    const openGuideModal = (guide?: any) => {
+        if (guide) {
+            setEditingGuide(guide);
+            setGuideForm({ title: guide.title, category: guide.category, content: guide.content });
+        } else {
+            setEditingGuide(null);
+            setGuideForm({ title: '', category: 'dog', content: '' });
+        }
+        setIsGuideModalOpen(true);
     };
 
     if (authLoading || (!user.isAdmin && !isLoading)) {
@@ -107,6 +161,12 @@ export default function Admin() {
                     className={`shrink-0 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-1.5 transition-all ${activeTab === 'apps' ? 'bg-[#ee9d2b] text-white shadow-md' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                 >
                     <FileText className="w-4 h-4" /> 领养审批
+                </button>
+                <button
+                    onClick={() => setActiveTab('guides')}
+                    className={`shrink-0 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-1.5 transition-all ${activeTab === 'guides' ? 'bg-[#ee9d2b] text-white shadow-md' : 'bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                >
+                    <BookOpen className="w-4 h-4" /> 养宠指南
                 </button>
             </div>
 
@@ -206,16 +266,99 @@ export default function Admin() {
                             </div>
                         ))}
 
+                        {/* GUIDES TAB */}
+                        {activeTab === 'guides' && (
+                            <>
+                                <button onClick={() => openGuideModal()} className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl flex items-center justify-center gap-2 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors mb-4">
+                                    <Plus className="w-5 h-5" /> 新增指南
+                                </button>
+                                {guidesList.map((g) => (
+                                    <div key={g.id} className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 mb-4">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex-1 mr-4">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">{g.category === 'dog' ? '狗狗' : g.category === 'cat' ? '猫咪' : '综合'}</span>
+                                                    <h3 className="font-bold text-base line-clamp-1">{g.title}</h3>
+                                                </div>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{g.content.replace(/[#*`_~]/g, '')}</p>
+                                            </div>
+                                            <div className="flex gap-2 shrink-0">
+                                                <button onClick={() => openGuideModal(g)} className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200">
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={() => deleteGuide(g.id)} className="p-2 bg-red-100 dark:bg-red-900/20 text-red-600 rounded-lg hover:bg-red-200">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        )}
+
                         {/* Empty States */}
                         {((activeTab === 'users' && usersList.length === 0) ||
                             (activeTab === 'pets' && petsList.length === 0) ||
-                            (activeTab === 'apps' && appsList.length === 0)) && !isLoading && (
+                            (activeTab === 'apps' && appsList.length === 0) ||
+                            (activeTab === 'guides' && guidesList.length === 0)) && !isLoading && (
                                 <div className="text-center py-12 text-slate-400 text-sm">暂无数据</div>
                             )}
 
                     </div>
                 )}
             </div>
+
+            {/* Guide Edit Modal */}
+            {isGuideModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+                        <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+                            <h3 className="font-bold text-lg">{editingGuide ? '编辑指南' : '新增指南'}</h3>
+                            <button onClick={() => setIsGuideModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600"><XCircle className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1.5">标题</label>
+                                <input
+                                    type="text"
+                                    placeholder="如：新手选狗指南"
+                                    value={guideForm.title}
+                                    onChange={e => setGuideForm({ ...guideForm, title: e.target.value })}
+                                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-[#ee9d2b]/50"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1.5">分类</label>
+                                <select
+                                    value={guideForm.category}
+                                    onChange={e => setGuideForm({ ...guideForm, category: e.target.value })}
+                                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-[#ee9d2b]/50"
+                                >
+                                    <option value="dog">狗狗</option>
+                                    <option value="cat">猫咪</option>
+                                    <option value="general">综合/其他</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1.5 flex justify-between">
+                                    <span>内容 (Markdown格式)</span>
+                                </label>
+                                <textarea
+                                    value={guideForm.content}
+                                    onChange={e => setGuideForm({ ...guideForm, content: e.target.value })}
+                                    rows={8}
+                                    placeholder="# 大标题&#10;## 小标题&#10;正文内容..."
+                                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-[#ee9d2b]/50 font-mono text-sm leading-relaxed"
+                                />
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex gap-3">
+                            <button onClick={() => setIsGuideModalOpen(false)} className="flex-1 py-2.5 rounded-xl font-bold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300">取消</button>
+                            <button onClick={saveGuide} className="flex-1 py-2.5 rounded-xl font-bold bg-[#ee9d2b] text-white">保存并发布</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

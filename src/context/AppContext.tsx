@@ -13,6 +13,8 @@ interface AppContextType {
     updateUser: (profile: Partial<UserProfile>) => Promise<void>;
     favorites: string[];
     toggleFavorite: (petId: string) => Promise<void>;
+    unreadCount: number;
+    setUnreadCount: React.Dispatch<React.SetStateAction<number>>;
     authLoading: boolean;
 }
 
@@ -26,6 +28,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<UserProfile>(defaultUser);
     const [favorites, setFavorites] = useState<string[]>([]);
+    const [unreadCount, setUnreadCount] = useState<number>(0);
     const [authLoading, setAuthLoading] = useState(true);
 
     useEffect(() => {
@@ -47,6 +50,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             } else if (mounted) {
                 setUser(defaultUser);
                 setFavorites([]);
+                setUnreadCount(0);
             }
         });
 
@@ -55,6 +59,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             subscription.unsubscribe();
         };
     }, []);
+
+    // Set up realtime listener for messages
+    useEffect(() => {
+        if (!user.id) return;
+
+        const messageSubscription = supabase
+            .channel('public:messages')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
+                (payload) => {
+                    // Only increment if we are not currently reading this chat 
+                    // (Actual robust implementation would check current path, for simplicity we increment unless marked read)
+                    setUnreadCount(prev => prev + 1);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(messageSubscription);
+        };
+    }, [user.id]);
 
     const fetchProfileAndFavorites = async (userId: string) => {
         // Fetch Profile
@@ -82,6 +108,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (favData) {
             setFavorites(favData.map((f: any) => f.pet_id));
         }
+
+        // Fetch Unread Messages Count
+        const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('receiver_id', userId)
+            .eq('is_read', false);
+
+        setUnreadCount(count || 0);
     };
 
     const updateUser = async (profileUpdate: Partial<UserProfile>) => {
@@ -117,7 +152,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     return (
-        <AppContext.Provider value={{ user, updateUser, favorites, toggleFavorite, authLoading }}>
+        <AppContext.Provider value={{ user, updateUser, favorites, toggleFavorite, unreadCount, setUnreadCount, authLoading }}>
             {children}
         </AppContext.Provider>
     );

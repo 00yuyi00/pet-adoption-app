@@ -92,26 +92,42 @@ export default function Discovery() {
                             <BookOpen className="w-5 h-5 text-[#ee9d2b]" />
                             养宠指南
                         </h2>
+                        <Link to="/guides" className="text-xs text-[#ee9d2b] font-medium flex items-center">
+                            查看全部 <ChevronRight className="w-4 h-4" />
+                        </Link>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/20 p-4 rounded-2xl relative overflow-hidden group cursor-pointer border border-orange-100 dark:border-orange-900/50">
-                            <div className="relative z-10">
-                                <span className="text-2xl mb-2 block">🐶</span>
-                                <h3 className="font-bold text-orange-900 dark:text-orange-200 text-sm">狗狗养宠指南</h3>
-                                <p className="text-[10px] text-orange-700/80 dark:text-orange-300/80 mt-1">新手接狗必看全攻略</p>
-                            </div>
-                            <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-orange-200/50 dark:bg-orange-800/30 rounded-full group-hover:scale-150 transition-transform duration-500"></div>
-                        </div>
+                        {guides.length > 0 ? guides.slice(0, 2).map((guide, idx) => (
+                            <Link key={guide.id} to={`/guide/${guide.id}`} className={`p-4 rounded-2xl relative overflow-hidden group border ${idx === 0 ? 'bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/20 border-orange-100 dark:border-orange-900/50' : 'bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/20 border-blue-100 dark:border-blue-900/50'}`}>
+                                <div className="relative z-10">
+                                    <span className="text-2xl mb-2 block">{guide.category === 'dog' ? '🐶' : '🐱'}</span>
+                                    <h3 className={`font-bold text-sm ${idx === 0 ? 'text-orange-900 dark:text-orange-200' : 'text-blue-900 dark:text-blue-200'} truncate`}>{guide.title}</h3>
+                                    <p className={`text-[10px] mt-1 ${idx === 0 ? 'text-orange-700/80 dark:text-orange-300/80' : 'text-blue-700/80 dark:text-blue-300/80'}`}>预计阅读 {Math.max(1, Math.round(guide.content.length / 500))} 分钟</p>
+                                </div>
+                                <div className={`absolute -bottom-4 -right-4 w-20 h-20 rounded-full group-hover:scale-150 transition-transform duration-500 ${idx === 0 ? 'bg-orange-200/50 dark:bg-orange-800/30' : 'bg-blue-200/50 dark:bg-blue-800/30'}`}></div>
+                            </Link>
+                        )) : (
+                            <>
+                                <Link to="/guides" className="bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/20 p-4 rounded-2xl relative overflow-hidden group cursor-pointer border border-orange-100 dark:border-orange-900/50">
+                                    <div className="relative z-10">
+                                        <span className="text-2xl mb-2 block">🐶</span>
+                                        <h3 className="font-bold text-orange-900 dark:text-orange-200 text-sm">狗狗养宠指南</h3>
+                                        <p className="text-[10px] text-orange-700/80 dark:text-orange-300/80 mt-1">新手接狗必看全攻略</p>
+                                    </div>
+                                    <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-orange-200/50 dark:bg-orange-800/30 rounded-full group-hover:scale-150 transition-transform duration-500"></div>
+                                </Link>
 
-                        <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/20 p-4 rounded-2xl relative overflow-hidden group cursor-pointer border border-blue-100 dark:border-blue-900/50">
-                            <div className="relative z-10">
-                                <span className="text-2xl mb-2 block">🐱</span>
-                                <h3 className="font-bold text-blue-900 dark:text-blue-200 text-sm">猫咪养宠指南</h3>
-                                <p className="text-[10px] text-blue-700/80 dark:text-blue-300/80 mt-1">从零开始懂猫语</p>
-                            </div>
-                            <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-blue-200/50 dark:bg-blue-800/30 rounded-full group-hover:scale-150 transition-transform duration-500"></div>
-                        </div>
+                                <Link to="/guides" className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/20 p-4 rounded-2xl relative overflow-hidden group cursor-pointer border border-blue-100 dark:border-blue-900/50">
+                                    <div className="relative z-10">
+                                        <span className="text-2xl mb-2 block">🐱</span>
+                                        <h3 className="font-bold text-blue-900 dark:text-blue-200 text-sm">猫咪养宠指南</h3>
+                                        <p className="text-[10px] text-blue-700/80 dark:text-blue-300/80 mt-1">从零开始懂猫语</p>
+                                    </div>
+                                    <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-blue-200/50 dark:bg-blue-800/30 rounded-full group-hover:scale-150 transition-transform duration-500"></div>
+                                </Link>
+                            </>
+                        )}
                     </div>
                 </section>
 

@@ -11,14 +11,52 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [stats, setStats] = useState({ following: 0, followers: 0, likes: 0 });
+  const [joinYear, setJoinYear] = useState('');
 
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('isLoggedIn');
     if (!isLoggedIn) {
       navigate('/login');
+      return;
     }
-  }, [navigate]);
+    fetchStats();
+  }, [navigate, user.id]);
+
+  const fetchStats = async () => {
+    if (!user.id) return;
+    try {
+      // Fetch Join Date from profiles
+      const { data: profileData } = await supabase.from('profiles').select('created_at').eq('id', user.id).single();
+      if (profileData?.created_at) {
+        setJoinYear(new Date(profileData.created_at).getFullYear().toString());
+      }
+
+      // Fetch Follows
+      const { count: followingCount } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', user.id);
+      const { count: followersCount } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', user.id);
+
+      // Fetch likes (using favorites as a proxy for "received likes" on user's posts)
+      // For a real app, this might be a complex join: count favorites where post_id in (select id from pets where user_id = current_user)
+      const { data: myPets } = await supabase.from('pets').select('id').eq('user_id', user.id);
+      let likesCount = 0;
+      if (myPets && myPets.length > 0) {
+        const petIds = myPets.map(p => p.id);
+        const { count } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).in('pet_id', petIds);
+        likesCount = count || 0;
+      }
+
+      setStats({
+        following: followingCount || 0,
+        followers: followersCount || 0,
+        likes: likesCount
+      });
+    } catch (e) {
+      console.error(e);
+      // Fallback display if table doesn't exist yet before user runs SQL
+      setStats({ following: 0, followers: 0, likes: 0 });
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -52,29 +90,31 @@ export default function Profile() {
               </Link>
             </div>
             <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-white">{user.name}</h2>
-            <div className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#ee9d2b]/10 text-[#ee9d2b] text-xs font-medium">
-              <ShieldCheck className="w-4 h-4" />
-              <span>加入于 2023年</span>
-            </div>
+            {joinYear && (
+              <div className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#ee9d2b]/10 text-[#ee9d2b] text-xs font-medium">
+                <ShieldCheck className="w-4 h-4" />
+                <span>加入于 {joinYear}年</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 grid grid-cols-3 gap-4 divide-x divide-slate-100 dark:divide-slate-800">
             <div className="flex flex-col items-center text-center">
-              <span className="text-lg font-bold text-slate-900 dark:text-white">2</span>
+              <span className="text-lg font-bold text-slate-900 dark:text-white">{stats.following}</span>
               <span className="text-xs text-slate-500 dark:text-slate-400">关注</span>
             </div>
             <div className="flex flex-col items-center text-center">
-              <span className="text-lg font-bold text-slate-900 dark:text-white">5</span>
+              <span className="text-lg font-bold text-slate-900 dark:text-white">{stats.followers}</span>
               <span className="text-xs text-slate-500 dark:text-slate-400">粉丝</span>
             </div>
             <div className="flex flex-col items-center text-center">
-              <span className="text-lg font-bold text-slate-900 dark:text-white">12</span>
+              <span className="text-lg font-bold text-slate-900 dark:text-white">{stats.likes}</span>
               <span className="text-xs text-slate-500 dark:text-slate-400">获赞</span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Link to="/my-adoptions" className="flex flex-col items-center justify-center gap-2 p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
             <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-500 flex items-center justify-center">
               <PawPrint className="w-6 h-6" />
@@ -86,6 +126,12 @@ export default function Profile() {
               <Megaphone className="w-6 h-6" />
             </div>
             <span className="text-xs font-medium text-slate-700 dark:text-slate-300">我的发布</span>
+          </Link>
+          <Link to="/favorites" className="flex flex-col items-center justify-center gap-2 p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-900/20 text-red-500 flex items-center justify-center">
+              <Heart className="w-6 h-6" />
+            </div>
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">我的收藏</span>
           </Link>
         </div>
 
