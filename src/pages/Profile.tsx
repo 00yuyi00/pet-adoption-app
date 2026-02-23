@@ -15,13 +15,10 @@ export default function Profile() {
   const [joinYear, setJoinYear] = useState('');
 
   useEffect(() => {
-    const isLoggedIn = localStorage.getItem('isLoggedIn');
-    if (!isLoggedIn) {
-      navigate('/login');
-      return;
+    if (user.id) {
+      fetchStats();
     }
-    fetchStats();
-  }, [navigate, user.id]);
+  }, [user.id]);
 
   const fetchStats = async () => {
     if (!user.id) return;
@@ -60,7 +57,7 @@ export default function Profile() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem('isLoggedIn');
+    // AppContext will automatically reset everything due to the auth channel listening for changes
     navigate('/login');
   };
 

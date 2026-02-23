@@ -19,8 +19,8 @@ interface AppContextType {
 }
 
 const defaultUser: UserProfile = {
-    name: '张伟',
-    avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDKGIRhh0isDoW3cwrkoKvdMkb7qZhtjePrIXg3U_lGG_XWaaJNGjZVLW-zZfUvpa_Tt6SE920N7uOsSs5cKX1716z1ufpkpSA-P6KuTrqSkBZFouzhTYD4eqM0PPGSgQAcMmQwK-RaKOt5GH4mhFyY7A5qiCuWozB7Gn6dfYP0t0catm15Zn0Ty3MheT-MLjw7Qu9kkwaS6VbRZqvkp-I1O2x-ora3RHzXrRnqm8UIx_21M5U3ul687vofGe9xVQbRDadp6qSA8Zy_'
+    name: '游客',
+    avatar: 'https://api.dicebear.com/7.x/notionists/svg?seed=guest'
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -83,40 +83,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [user.id]);
 
     const fetchProfileAndFavorites = async (userId: string) => {
-        // Fetch Profile
-        const { data: profileData } = await supabase
-            .from('profiles')
-            .select('name, avatar_url, is_admin')
-            .eq('id', userId)
-            .single();
+        try {
+            // First, set the ID so the app knows we are authenticated
+            setUser(prev => ({ ...prev, id: userId }));
 
-        if (profileData) {
-            setUser({
-                id: userId,
-                name: profileData.name || '微信用户',
-                avatar: profileData.avatar_url || defaultUser.avatar,
-                isAdmin: !!profileData.is_admin
-            });
+            // Fetch Profile
+            const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('name, avatar_url, is_admin')
+                .eq('id', userId)
+                .maybeSingle(); // maybeSingle doesn't throw 406 if missing
+
+            if (profileData) {
+                setUser({
+                    id: userId,
+                    name: profileData.name || '宠友',
+                    avatar: profileData.avatar_url || defaultUser.avatar,
+                    isAdmin: !!profileData.is_admin
+                });
+            } else {
+                // Profile missing (likely table was recreated), auto-create it
+                const newName = `新宠友_${userId.slice(0, 5)}`;
+                const newAvatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${userId}`;
+
+                await supabase.from('profiles').insert({
+                    id: userId,
+                    name: newName,
+                    avatar_url: newAvatar
+                });
+
+                setUser({
+                    id: userId,
+                    name: newName,
+                    avatar: newAvatar,
+                    isAdmin: false
+                });
+            } if (profileError) {
+                console.error('Error fetching profile:', profileError);
+            }
+
+            // Fetch Favorites
+            const { data: favData } = await supabase
+                .from('favorites')
+                .select('pet_id')
+                .eq('user_id', userId);
+
+            if (favData) {
+                setFavorites(favData.map((f: any) => f.pet_id));
+            }
+
+            // Fetch Unread Messages Count
+            const { count } = await supabase
+                .from('messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('receiver_id', userId)
+                .eq('is_read', false);
+
+            setUnreadCount(count || 0);
+        } catch (err) {
+            console.error('Data sync error:', err);
         }
-
-        // Fetch Favorites
-        const { data: favData } = await supabase
-            .from('favorites')
-            .select('pet_id')
-            .eq('user_id', userId);
-
-        if (favData) {
-            setFavorites(favData.map((f: any) => f.pet_id));
-        }
-
-        // Fetch Unread Messages Count
-        const { count } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('receiver_id', userId)
-            .eq('is_read', false);
-
-        setUnreadCount(count || 0);
     };
 
     const updateUser = async (profileUpdate: Partial<UserProfile>) => {

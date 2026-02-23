@@ -4,8 +4,10 @@
  */
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Layout, NoNavLayout } from './components/Layout';
+import { useAppContext } from './context/AppContext';
+import { Loader2 } from 'lucide-react';
 import Home from './pages/Home';
 import Publish from './pages/Publish';
 import Profile from './pages/Profile';
@@ -27,9 +29,19 @@ import GuideList from './pages/GuideList';
 import GuideDetail from './pages/GuideDetail';
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
-  const isLoggedIn = localStorage.getItem('isLoggedIn');
-  if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
+  const { user, authLoading } = useAppContext();
+  const location = useLocation();
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f7f6] dark:bg-[#221a10]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#ee9d2b]" />
+      </div>
+    );
+  }
+
+  if (!user.id) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   return <>{children}</>;
 };

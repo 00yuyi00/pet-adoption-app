@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, PawPrint, Mail, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || '/';
+
   const [isLogin, setIsLogin] = useState(true);
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -36,11 +38,16 @@ export default function Login() {
           password: password,
         });
 
-        if (error) throw error;
+        if (error) {
+          // Provide more friendly error messages
+          if (error.message.includes('Invalid login credentials')) {
+            throw new Error('邮箱或密码错误');
+          }
+          throw error;
+        }
 
-        if (data.user) {
-          localStorage.setItem('isLoggedIn', 'true');
-          navigate('/');
+        if (data.session) {
+          navigate(from, { replace: true });
         }
       } else {
         // Register logic via Supabase
@@ -60,18 +67,26 @@ export default function Login() {
           password: password,
         });
 
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes('User already registered')) {
+            throw new Error('该邮箱已被注册，请直接登录');
+          }
+          throw error;
+        }
 
-        setMessage({ type: 'success', text: '注册成功！请登录验证您的邮箱。' });
-
-        // Clear form and switch to login
-        setTimeout(() => {
-          setIsLogin(true);
-          setPassword('');
-          setConfirmPassword('');
-          setCode('');
-          setMessage({ type: '', text: '' });
-        }, 2000);
+        // Supabase might return a user but no session if email confirmation is required
+        if (data.user && data.session) {
+          // Successfully signed up AND logged in (auto-confirm enabled)
+          navigate(from, { replace: true });
+        } else {
+          setMessage({ type: 'success', text: '注册成功！请查看您的邮箱以验证账号。' });
+          setTimeout(() => {
+            setIsLogin(true);
+            setPassword('');
+            setConfirmPassword('');
+            setMessage({ type: '', text: '' });
+          }, 3000);
+        }
       }
     } catch (err: any) {
       console.error('Auth error:', err);
