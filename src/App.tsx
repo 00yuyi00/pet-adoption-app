@@ -20,6 +20,8 @@ import MyPosts from './pages/MyPosts';
 import Discovery from './pages/Discovery';
 import Applications from './pages/Applications';
 import Chat from './pages/Chat';
+import Settings from './pages/Settings';
+import Admin from './pages/Admin';
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   const isLoggedIn = localStorage.getItem('isLoggedIn');
@@ -50,6 +52,8 @@ export default function App() {
           <Route path="/my-posts" element={<AuthGuard><MyPosts /></AuthGuard>} />
           <Route path="/applications" element={<AuthGuard><Applications /></AuthGuard>} />
           <Route path="/chat/:id" element={<AuthGuard><Chat /></AuthGuard>} />
+          <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
+          <Route path="/admin" element={<AuthGuard><Admin /></AuthGuard>} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -160,3 +160,51 @@ insert into public.guides (category, title, content, cover_url)
 values
   ('dog_guide', '狗狗接回家第一天该做什么？', '准备好航空箱、狗粮，不要急着洗澡，让它先熟悉环境...', 'https://lh3.googleusercontent.com/aida-public/AB6AXuDQmX4_...'),
   ('cat_guide', '猫咪接回家不要马上抱它', '猫咪应激反应大，给他准备一个暗处的纸箱，放好水和粮...', 'https://lh3.googleusercontent.com/aida-public/AB6AXuDqnK...');
+
+-- ==========================================
+-- 7. Add Admin & Status Fields to Profiles
+-- ==========================================
+-- Add fields to track admin rights and user ban status
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_admin boolean DEFAULT false;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status text DEFAULT 'active'; -- 'active' or 'banned'
+
+-- ==========================================
+-- 8. Advanced RLS Policies for Admin Actions
+-- ==========================================
+
+-- Admins can update any profile (e.g. to ban/unban users)
+CREATE POLICY "Admins can update any profile" ON public.profiles FOR UPDATE USING (
+  (SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true
+);
+
+-- Admins can delete any pet post
+CREATE POLICY "Admins can delete any pet" ON public.pets FOR DELETE USING (
+  (SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true
+);
+
+-- Admins can update any pet post
+CREATE POLICY "Admins can update any pet" ON public.pets FOR UPDATE USING (
+  (SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true
+);
+
+-- Admins can update any application status (Approve/Reject)
+CREATE POLICY "Admins can update any application" ON public.applications FOR UPDATE USING (
+  (SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true
+);
+
+-- Admins can view all applications globally
+CREATE POLICY "Admins can view all applications" ON public.applications FOR SELECT USING (
+  (SELECT is_admin FROM public.profiles WHERE id = auth.uid()) = true
+);
+
+-- ==========================================
+-- 9. Storage Buckets for Uploads
+-- ==========================================
+-- Note: It is best practice to create the 'avatars' and 'pets' 
+-- storage buckets manually in the Supabase Dashboard as PUBLIC.
+-- If the buckets exist, you can enforce policies below (requires superuser access):
+-- 
+-- CREATE POLICY "Avatar Images are publicly accessible." ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
+-- CREATE POLICY "Users can upload their own avatars." ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.role() = 'authenticated');
+-- CREATE POLICY "Pet Images are publicly accessible." ON storage.objects FOR SELECT USING (bucket_id = 'pets');
+-- CREATE POLICY "Users can upload pet images." ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'pets' AND auth.role() = 'authenticated');

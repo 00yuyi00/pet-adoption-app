@@ -1,12 +1,16 @@
-import { Search, Filter, ChevronDown } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Search, Filter, ChevronDown, Loader2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 export default function Categories() {
   const [searchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as 'adopt' | 'lost') || 'adopt';
   const [activeTab, setActiveTab] = useState<'adopt' | 'lost'>(initialTab);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [pets, setPets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const tab = searchParams.get('tab') as 'adopt' | 'lost';
@@ -14,6 +18,37 @@ export default function Categories() {
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    async function fetchPets() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('pets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setPets(data);
+      }
+      setLoading(false);
+    }
+    fetchPets();
+  }, []);
+
+  const filteredPets = useMemo(() => {
+    return pets.filter(pet => {
+      if (pet.post_type !== activeTab && pet.type !== activeTab) return false;
+      if (activeCategory !== 'all' && pet.category !== activeCategory) return false;
+      if (searchQuery.trim() !== '') {
+        const query = searchQuery.toLowerCase();
+        const matchesName = pet.name?.toLowerCase().includes(query);
+        const matchesBreed = (pet.breed || '').toLowerCase().includes(query);
+        const matchesDesc = (pet.description || pet.desc || '').toLowerCase().includes(query);
+        if (!matchesName && !matchesBreed && !matchesDesc) return false;
+      }
+      return true;
+    });
+  }, [pets, activeTab, activeCategory, searchQuery]);
 
   const categories = [
     { id: 'all', name: '全部', icon: '🐾' },
@@ -34,6 +69,8 @@ export default function Categories() {
             <input
               type="text"
               placeholder="搜索品种、城市..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white dark:bg-[#2d261e] border-none rounded-xl py-2.5 pl-10 pr-4 text-sm shadow-sm focus:ring-2 focus:ring-[#ee9d2b]/50 placeholder:text-[#9a794c]/70 dark:placeholder:text-[#bca380]/70 transition-all outline-none"
             />
           </div>
@@ -66,11 +103,10 @@ export default function Categories() {
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
-                activeCategory === cat.id
+              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${activeCategory === cat.id
                   ? 'bg-[#ee9d2b] text-white shadow-md shadow-[#ee9d2b]/20'
                   : 'bg-white dark:bg-[#2d261e] text-[#1b160d] dark:text-[#f3eee7] border border-gray-100 dark:border-gray-800'
-              }`}
+                }`}
             >
               <span className="text-base">{cat.icon}</span> {cat.name}
             </button>
@@ -82,40 +118,46 @@ export default function Categories() {
             <span>默认排序</span>
             <ChevronDown className="w-4 h-4" />
           </div>
-          <div className="text-xs text-gray-400">共 128 个结果</div>
+          <div className="text-xs text-gray-400">共 {filteredPets.length} 个结果</div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((item) => (
-            <Link to={activeTab === 'adopt' ? `/pet/${item}` : `/lost/${item}`} key={item} className="bg-white dark:bg-[#2d261e] rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-800 group cursor-pointer block">
-              <div className="relative h-40 overflow-hidden">
-                <img
-                  src={`https://picsum.photos/seed/${activeTab}${item}/400/400`}
-                  alt="Pet"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute top-2 right-2 bg-white/90 dark:bg-black/60 backdrop-blur-sm p-1 rounded-full shadow-sm">
-                  <span className={item % 2 === 0 ? "text-blue-500 text-xs font-bold block" : "text-pink-500 text-xs font-bold block"}>
-                    {item % 2 === 0 ? '♂' : '♀'}
-                  </span>
+          {loading ? (
+            <div className="col-span-2 flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-[#ee9d2b]" /></div>
+          ) : filteredPets.length === 0 ? (
+            <div className="col-span-2 text-center text-sm text-gray-500 py-12">暂无相关宠物</div>
+          ) : (
+            filteredPets.map((pet) => (
+              <Link to={activeTab === 'adopt' ? `/pet/${pet.id}` : `/lost/${pet.id}`} key={pet.id} className="bg-white dark:bg-[#2d261e] rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-800 group cursor-pointer block">
+                <div className="relative h-40 overflow-hidden">
+                  <img
+                    src={pet.image_url || pet.image || `https://picsum.photos/seed/${activeTab}${pet.id}/400/400`}
+                    alt={pet.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
+                  <div className="absolute top-2 right-2 bg-white/90 dark:bg-black/60 backdrop-blur-sm p-1 rounded-full shadow-sm">
+                    <span className={pet.gender === 'male' ? "text-blue-500 text-xs font-bold block" : "text-pink-500 text-xs font-bold block"}>
+                      {pet.gender === 'male' ? '♂' : '♀'}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="p-3">
-                <div className="flex justify-between items-start mb-1">
-                  <h3 className="font-bold text-[#1b160d] dark:text-[#f3eee7]">毛毛 {item}</h3>
-                  {activeTab === 'adopt' ? (
-                    <span className="text-[10px] bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded">已绝育</span>
-                  ) : (
-                    <span className="text-[10px] text-[#ee9d2b] font-bold">¥1000</span>
-                  )}
+                <div className="p-3">
+                  <div className="flex justify-between items-start mb-1">
+                    <h3 className="font-bold text-[#1b160d] dark:text-[#f3eee7] truncate flex-1">{pet.name}</h3>
+                    {activeTab === 'adopt' ? (
+                      pet.status && <span className="text-[10px] bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded whitespace-nowrap">{pet.status}</span>
+                    ) : (
+                      pet.reward && <span className="text-[10px] text-[#ee9d2b] font-bold whitespace-nowrap">{pet.reward}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[#9a794c] dark:text-[#bca380] mb-2 truncate">{pet.age} • {pet.breed || (pet.category === 'cat' ? '猫咪' : '狗狗')}</p>
+                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                    <span className="truncate">{pet.location || '同城'}</span>
+                  </div>
                 </div>
-                <p className="text-xs text-[#9a794c] dark:text-[#bca380] mb-2">{item}岁 • {activeCategory === 'cat' ? '猫咪' : '狗狗'}</p>
-                <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                  <span>上海市 • 浦东新区</span>
-                </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            ))
+          )}
         </div>
       </main>
     </div>

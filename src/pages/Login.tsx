@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { EyeOff, PawPrint, Mail, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, PawPrint, Mail, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -11,6 +11,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [code, setCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -143,28 +145,36 @@ export default function Login() {
 
             <div className="relative group">
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="密码"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full h-14 pl-6 pr-12 bg-[#f8f7f6] dark:bg-[#352b1f] border-none focus:ring-2 focus:ring-[#ee9d2b]/40 rounded-2xl text-[#1b160d] dark:text-gray-100 placeholder-[#9a794c]/40 text-base font-bold transition-all shadow-sm outline-none"
               />
-              <button type="button" className="absolute right-5 top-1/2 -translate-y-1/2 text-[#9a794c]/40 hover:text-[#9a794c] transition-colors">
-                <EyeOff className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-[#9a794c]/40 hover:text-[#9a794c] transition-colors"
+              >
+                {showPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
               </button>
             </div>
 
             {!isLogin && (
               <div className="relative group">
                 <input
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   placeholder="确认密码"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full h-14 pl-6 pr-12 bg-[#f8f7f6] dark:bg-[#352b1f] border-none focus:ring-2 focus:ring-[#ee9d2b]/40 rounded-2xl text-[#1b160d] dark:text-gray-100 placeholder-[#9a794c]/40 text-base font-bold transition-all shadow-sm outline-none"
                 />
-                <button type="button" className="absolute right-5 top-1/2 -translate-y-1/2 text-[#9a794c]/40 hover:text-[#9a794c] transition-colors">
-                  <EyeOff className="w-5 h-5" />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-5 top-1/2 -translate-y-1/2 text-[#9a794c]/40 hover:text-[#9a794c] transition-colors"
+                >
+                  {showConfirmPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                 </button>
               </div>
             )}

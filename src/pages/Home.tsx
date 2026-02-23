@@ -1,6 +1,6 @@
 import { MapPin, ChevronDown, Bell, Search, ChevronRight, AlertTriangle, Heart, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 
@@ -49,12 +49,20 @@ export default function Home() {
     });
   }, [pets, currentTab, currentCategory, searchQuery]);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentBanner((prev) => (prev === 0 ? 1 : 0));
+      if (scrollRef.current) {
+        const nextIndex = currentBanner === 0 ? 1 : 0;
+        scrollRef.current.scrollTo({
+          left: nextIndex * scrollRef.current.offsetWidth,
+          behavior: 'smooth'
+        });
+      }
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [currentBanner]);
 
   return (
     <div className="flex-1 overflow-y-auto pb-24 no-scrollbar bg-[#fcfaf8] dark:bg-[#1f1a14] min-h-screen text-[#1b160d] dark:text-[#f3eee7]">
@@ -158,13 +166,19 @@ export default function Home() {
         </div>
 
         <div className="px-4 mb-8">
-          <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-lg group">
+          <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.08)] group">
             <div
-              className="flex transition-transform duration-500 ease-in-out h-full"
-              style={{ transform: `translateX(-${currentBanner * 100}%)` }}
+              ref={scrollRef}
+              className="flex w-full h-full overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
+              onScroll={(e) => {
+                const scrollLeft = e.currentTarget.scrollLeft;
+                const width = e.currentTarget.offsetWidth;
+                const index = Math.round(scrollLeft / width);
+                if (index !== currentBanner) setCurrentBanner(index);
+              }}
             >
               {/* Banner 1: Daily Recommendation */}
-              <div className="w-full h-full flex-shrink-0 relative">
+              <div className="w-full h-full flex-shrink-0 relative snap-center">
                 <img
                   src="https://lh3.googleusercontent.com/aida-public/AB6AXuBs_1jypevPtwo2NnCBRIoLtvG_ALgc4Mngi7jXKqaZl7w2dpg5m9T3b5C5zUJvpvSmCxtL2ALaqTHjoq0xrIK0HgNWUOKqoMsuvEyzxBRjRARiDLhhVHCWGsfQNEUfkkORAWizsrKszeKQsQZ7ZI_KB-CO1WBxSwNieaeUv9zYE2iI9RoAJCaWpDab15Iz0IOnO5xvmlaZT9Efz3zCQy0KhlCAOiC3t8_EYX0AHIfgarnChSZj4rMutPI0bhuG8PFQeWUxwLTkfJoq"
                   alt="Happy dog running in a park"
@@ -178,7 +192,7 @@ export default function Home() {
               </div>
 
               {/* Banner 2: Emergency Lost Pet */}
-              <Link to="/lost/1" className="w-full h-full flex-shrink-0 relative block">
+              <Link to="/lost/1" className="w-full h-full flex-shrink-0 relative block snap-center">
                 <img
                   src="https://lh3.googleusercontent.com/aida-public/AB6AXuCRC1MHKHdr87MQpqUf8K71xeGPoST1h8C7alM75XTdTEEwR0L9zXriQfGwtDhFxbXVzSokdFPo6ieTaEta5pmReARYz9y_HyYqM-07APb75nLxbShQo2d0SZ33vLy_YKg4qkB7AFGdHcQgm2u5OpM_g5EjCORZOw5s48kdAJPyaivReR2NWx4qGvMzHGa3LMA6UpgfVGxmEWd4qdvxd3BoknifgA0Lz91hPvNMOYfCZ_aWCrhl2WB-4iitvPo10GDa2Ox8ZeOAZcI3"
                   alt="Lost cat"

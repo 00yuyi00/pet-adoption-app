@@ -5,6 +5,7 @@ export interface UserProfile {
     id?: string;
     name: string;
     avatar: string;
+    isAdmin?: boolean;
 }
 
 interface AppContextType {
@@ -59,7 +60,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Fetch Profile
         const { data: profileData } = await supabase
             .from('profiles')
-            .select('name, avatar_url')
+            .select('name, avatar_url, is_admin')
             .eq('id', userId)
             .single();
 
@@ -68,6 +69,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 id: userId,
                 name: profileData.name || '微信用户',
                 avatar: profileData.avatar_url || defaultUser.avatar,
+                isAdmin: !!profileData.is_admin
             });
         }
 

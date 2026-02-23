@@ -1,6 +1,6 @@
 import { X, Camera, MapPin, Search, Map, FileText, Phone, Send, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAppContext } from '../context/AppContext';
 
@@ -14,7 +14,20 @@ export default function Publish() {
   const [petName, setPetName] = useState('');
   const [description, setDescription] = useState('');
   const [locationStr, setLocationStr] = useState('');
+  const [hasReward, setHasReward] = useState(false);
+  const [rewardAmount, setRewardAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
 
   const handlePublish = async () => {
     if (!user?.id) {
@@ -29,10 +42,27 @@ export default function Publish() {
 
     setIsSubmitting(true);
     try {
-      // Create a mock image based on category for demo
-      const mockImg = petType === 'dog'
-        ? 'https://lh3.googleusercontent.com/aida-public/AB6AXuDQmX4_...dog...'
-        : 'https://lh3.googleusercontent.com/aida-public/AB6AXuDqnK...cat...';
+      let finalImageUrl = petType === 'dog'
+        ? 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800'
+        : 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=800';
+
+      if (imageFile) {
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+        const filePath = `public/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('pets')
+          .upload(filePath, imageFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('pets')
+          .getPublicUrl(filePath);
+
+        finalImageUrl = publicUrl;
+      }
 
       const { error } = await supabase.from('pets').insert({
         user_id: user.id,
@@ -41,9 +71,10 @@ export default function Publish() {
         name: petName || (postType === 'lost' ? '走失宠物' : '待领养宠物'),
         description: description,
         location: locationStr,
-        image_url: petType === 'dog' ? 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800' : 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=800',
+        image_url: finalImageUrl,
         gender: 'unknown',
-        status: '未知'
+        status: '未知',
+        reward: hasReward && rewardAmount ? `¥${rewardAmount}` : null
       });
 
       if (error) throw error;
@@ -110,12 +141,28 @@ export default function Publish() {
         </div>
 
         <div className="px-4 pb-2">
-          <div className="relative w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-[#ee9d2b]/40 bg-[#ee9d2b]/5 dark:bg-[#ee9d2b]/10 hover:bg-[#ee9d2b]/10 dark:hover:bg-[#ee9d2b]/20 transition-colors cursor-pointer flex flex-col items-center justify-center gap-3 group">
-            <div className="flex items-center justify-center size-16 rounded-full bg-[#ee9d2b]/20 text-[#ee9d2b] group-hover:scale-110 transition-transform duration-300">
-              <Camera className="w-8 h-8" />
-            </div>
-            <span className="text-[#ee9d2b] font-medium text-sm">点击上传宠物照片</span>
-            <span className="text-stone-400 text-xs">支持 JPG, PNG</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleImageChange}
+          />
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="relative w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-[#ee9d2b]/40 bg-[#ee9d2b]/5 dark:bg-[#ee9d2b]/10 hover:bg-[#ee9d2b]/10 dark:hover:bg-[#ee9d2b]/20 transition-colors cursor-pointer flex flex-col items-center justify-center gap-3 overflow-hidden group"
+          >
+            {imagePreview ? (
+              <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+            ) : (
+              <>
+                <div className="flex items-center justify-center size-16 rounded-full bg-[#ee9d2b]/20 text-[#ee9d2b] group-hover:scale-110 transition-transform duration-300">
+                  <Camera className="w-8 h-8" />
+                </div>
+                <span className="text-[#ee9d2b] font-medium text-sm">点击上传宠物照片</span>
+                <span className="text-stone-400 text-xs">支持 JPG, PNG</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -360,10 +407,23 @@ export default function Publish() {
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" />
+                <input type="checkbox" className="sr-only peer" checked={hasReward} onChange={() => setHasReward(!hasReward)} />
                 <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer dark:bg-stone-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-[#ee9d2b]"></div>
               </label>
             </div>
+
+            {hasReward && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300 relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">¥</div>
+                <input
+                  type="number"
+                  placeholder="请输入悬赏金额"
+                  value={rewardAmount}
+                  onChange={(e) => setRewardAmount(e.target.value)}
+                  className="w-full bg-white dark:bg-stone-800 border-0 ring-1 ring-stone-200 dark:ring-stone-700 focus:ring-2 focus:ring-[#ee9d2b] rounded-xl px-4 py-3 pl-8 text-slate-900 dark:text-slate-100 placeholder:text-stone-400 outline-none"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
